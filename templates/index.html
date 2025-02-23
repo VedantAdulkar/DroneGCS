@@ -42,6 +42,10 @@
             margin-top: 2rem;
         }
 
+        #span-card{
+            grid-column: span 2
+            }
+
         .card {
             background: white;
             border-radius: 10px;
@@ -231,6 +235,40 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 0 15px 30px 20px;
+            border: 1px solid #888;
+            width: 400px;
+            height: auto;
+            text-align: center;
+            border-radius: 10px;
+        }
+
+        .close {
+            color: red;
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: darkred;
+            font-size: 26px;
+        }
     </style>
 </head>
 <body>
@@ -255,23 +293,49 @@
 
         <div class="alert" id="alert"></div>
 
-        <div class="dashboard">
-            <div class="card">
-                <h2>Connection Controls</h2>
-                <div class="button-group">
-                    <button id="connect-btn" class="btn btn-primary">Connect Drone</button>
-                    <button id="arm-btn" class="btn btn-success" disabled>Arm Motors</button>
-                    <button id="disarm-btn" class="btn btn-danger" disabled>Disarm Motors</button>
-                </div>
-            </div>
 
-            <div class="card">
+        <div id="connectModal" class="modal">
+            <form id="rpilogin-form">
+                <div class="modal-content">
+                    <span class="close" onclick="closeModal()">&times;</span><br>
+                    <h2>Raspberry Pi SSH Connector</h2><br>
+                
+                    <label for="rpi_ip">Raspberry Pi IP:</label>
+                    <input type="text" id="rpi_ip" placeholder="192.168.1.100"><br><br>
+                
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" placeholder="pi"><br><br>
+                
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" placeholder="••••••"><br><br>
+                
+                    <button type="submit" class="btn btn-primary">Connect</button>
+                    <p id="status"></p>
+                </div>
+            </form>
+        </div>
+
+
+        <div class="connection-card">
+            <h2>Connection Controls</h2>
+            <div class="button-group">
+                <button id="connect-rpiform" class="btn btn-primary" onclick="openModal()">Connect RPI</button>
+                <button id="connect-btn" class="btn btn-primary">Connect Drone</button>
+                <button id="arm-btn" class="btn btn-success" disabled>Arm Motors</button>
+                <button id="disarm-btn" class="btn btn-danger" disabled>Disarm Motors</button>
+            </div>
+        </div>
+
+        <div class="dashboard">
+
+            <div class="card" id="span-card">
                 <h2>Drone Camera</h2>
                 <div class="camera-feed">
-                    <div class="camera-feed-placeholder">
+                    <div class="camera-feed-placeholder" id="placeholder">
                         <p>Camera Feed Not Connected</p>
                         <small>Connect Raspberry Pi to enable camera stream</small>
                     </div>
+                    <img id="video-stream" src="{{ url_for('video_feed') }}" width="300" height="300" onload="hidePlaceholder()" onerror="showPlaceholder()">
                 </div>
             </div>
 
@@ -314,7 +378,7 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card" id="span-card">
                 <h2>Motor Testing</h2>
                 <div class="motor-grid">
                     <div class="motor-card" id="motor1">
@@ -378,6 +442,47 @@
                 alert.style.display = 'none';
             }, 3000);
         }
+
+        function openModal() {
+            document.getElementById("connectModal").style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById("connectModal").style.display = "none";
+        }
+
+
+        document.getElementById('rpilogin-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('hostname', document.getElementById('hostname').value);
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+
+            fetch('/login', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status) {
+                    // Successful login, redirect to main dashboard
+                    window.location.href = '/';
+                } else {
+                    // Show error message
+                    const errorMessage = document.getElementById('error-message');
+                    errorMessage.textContent = data.message || 'Login Failed';
+                    errorMessage.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.textContent = 'Connection Error';
+                errorMessage.style.display = 'block';
+            });
+        });
 
         // Update status indicators
         function updateStatus() {

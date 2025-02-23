@@ -7,15 +7,18 @@ flask-socketio==5.1.1
 """
 
 # app.py
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, Response, request
 from flask_socketio import SocketIO
 import paramiko
 from pymavlink import mavutil
 import time
 import threading
+import requests
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+
+RPI_STREAM_URL = 'http://raspberrypi.local:8080/stream.mjpg'
 
 # SSH Configuration
 SSH_HOST = 'raspberrypi.local'
@@ -125,11 +128,30 @@ drone = DroneController()
 def index():
     return render_template('index.html')
 
+@app.route('/loginrpi', methods=['POST'])
+
 @app.route('/connect', methods=['POST'])
-def connect():
-    if drone.connect_ssh() and drone.connect_mavlink():
-        return jsonify({'status': 'success'})
-    return jsonify({'status': 'error'})
+def connect_rpi():
+    hostname = request.form.get('hostname')
+    username = request.form.get('username')
+    password = request.form.get('password')
+    
+    result, message = rpi_manager.connect(hostname, username, password)
+    return jsonify({
+        'status': result,
+        'message': message
+    })
+
+@app.route('/video_feed')
+def video_feed():
+    def generate():
+        stream = requests.get(RPI_STREAM_URL, stream=True)
+        for chunk in stream.iter_content(chunk_size=1024):
+            if chunk:
+                yield chunk
+
+    return Response(generate(), 
+                    mimetype='multipart/x-mixed-replace; boundary=FRAME')
 
 @app.route('/arm', methods=['POST'])
 def arm():
@@ -145,7 +167,7 @@ def disarm():
 
 @app.route('/test_motor', methods=['POST'])
 def test_motor():
-    data = request.json
+    data = requests.json
     motor_num = data.get('motor')
     throttle = data.get('throttle')
     if drone.test_motor(motor_num, throttle):
