@@ -24,6 +24,7 @@ These are the four main controls that determine how a drone moves in 3D space.
 
 
 mavproxy.py --master=/dev/serial0 --baudrate 57600 --out udp:192.168.11.6:14550
+
 .. will start sending messages to laptops IP {192.168.11.6}
 
         self.master = mavutil.mavlink_connection("udp:0.0.0.0:14550")
