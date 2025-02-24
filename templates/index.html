@@ -277,8 +277,12 @@
             <h1>Drone Control Interface</h1>
             <div class="status-panel">
                 <div class="status-item">
+                    <span class="status-indicator status-offline" id="rpiconnection-status"></span>
+                    RPI Connection
+                </div>
+                <div class="status-item">
                     <span class="status-indicator status-offline" id="connection-status"></span>
-                    Connection Status
+                    Drone Connection
                 </div>
                 <div class="status-item">
                     <span class="status-indicator status-offline" id="arm-status"></span>
@@ -301,13 +305,13 @@
                     <h2>Raspberry Pi SSH Connector</h2><br>
                 
                     <label for="rpi_ip">Raspberry Pi IP:</label>
-                    <input type="text" id="rpi_ip" placeholder="192.168.1.100"><br><br>
+                    <input type="text" id="rpi_ip" name="hostip" placeholder="192.168.1.100"><br><br>
                 
                     <label for="username">Username:</label>
-                    <input type="text" id="username" placeholder="pi"><br><br>
+                    <input type="text" id="username" name="username" placeholder="pi"><br><br>
                 
                     <label for="password">Password:</label>
-                    <input type="password" id="password" placeholder="••••••"><br><br>
+                    <input type="password" id="password" name="password" placeholder="••••••"><br><br>
                 
                     <button type="submit" class="btn btn-primary">Connect</button>
                     <p id="status"></p>
@@ -420,6 +424,7 @@
 
     <script>
         const socket = io();
+        let isRPIconnected = false;
         let isConnected = false;
         let isArmed = false;
         let joystickActive = false;
@@ -452,40 +457,70 @@
         }
 
 
+        // JavaScript to handle the form submission and update the status
         document.getElementById('rpilogin-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData();
-            formData.append('hostname', document.getElementById('hostname').value);
-            formData.append('username', document.getElementById('username').value);
-            formData.append('password', document.getElementById('password').value);
+            e.preventDefault(); // Prevent the default form submission
 
-            fetch('/login', {
+            // Get form data
+            const formData = new FormData(this);
+
+            // Show loading state
+            document.getElementById('status').innerText = 'Connecting...';
+
+            // Send form data to the /connect endpoint
+            fetch('/connect', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
+                // Update status with the message from the server
+                document.getElementById('status').innerText = data.message;
+
+                // Set the isConnected variable based on the status from the server
+                isRPIconnected = data.status;
+                updateStatus();
+                showAlert('Successfully connected to RPI', 'success');
+
                 if (data.status) {
-                    // Successful login, redirect to main dashboard
-                    window.location.href = '/';
+                    // If successfully connected
+                    document.getElementById('status').className = 'success';
+
+                    // Optionally close the modal after a successful connection
+                    setTimeout(() => {
+                        closeModal();
+                    }, 2000);
                 } else {
-                    // Show error message
-                    const errorMessage = document.getElementById('error-message');
-                    errorMessage.textContent = data.message || 'Login Failed';
-                    errorMessage.style.display = 'block';
+                    // If connection failed
+                    document.getElementById('status').className = 'error';
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                const errorMessage = document.getElementById('error-message');
-                errorMessage.textContent = 'Connection Error';
-                errorMessage.style.display = 'block';
+                // Handle any errors
+                document.getElementById('status').innerText = 'Connection error ';
+                document.getElementById('status').className = 'error';
+                isRPIconnected = false;
             });
         });
 
+        // Add some basic CSS for the status messages
+        document.head.insertAdjacentHTML('beforeend', `
+        <style>
+            #status.success {
+                color: green;
+                font-weight: bold;
+            }
+            #status.error {
+                color: red;
+                font-weight: bold;
+            }
+        </style>
+        `);
+
         // Update status indicators
         function updateStatus() {
+            document.getElementById('rpiconnection-status').className = 
+                `status-indicator status-${isRPIconnected ? 'online' : 'offline'}`;
             document.getElementById('connection-status').className = 
                 `status-indicator status-${isConnected ? 'online' : 'offline'}`;
             document.getElementById('arm-status').className = 

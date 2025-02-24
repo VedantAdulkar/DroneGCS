@@ -30,18 +30,21 @@ class DroneController:
     def __init__(self):
         self.ssh_client = None
         self.mavlink_connection = None
+        self.isRPIconnected = False
         self.is_connected = False
         self.armed = False
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    def connect_ssh(self):
+    def connect_ssh(self, hostname, username, password):
         try:
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.ssh_client.connect(SSH_HOST, username=SSH_USERNAME, password=SSH_PASSWORD)
-            return True
+            self.ssh_client.connect(hostname, username=username, password=password)
+            self.isRPIconnected = True
+            return True, "SSH connection successful"
         except Exception as e:
             print(f"SSH Connection Error: {str(e)}")
-            return False
+            self.isRPIconnected = False
+            return False, str(e)
 
     def connect_mavlink(self):
         try:
@@ -52,9 +55,10 @@ class DroneController:
                                           ('127.0.0.1', 14550))
             
             # Connect to MAVLink
-            self.mavlink_connection = mavutil.mavlink_connection('udpin:localhost:14550')
-            self.mavlink_connection.wait_heartbeat()
-            print("Waiting for heartbeat")
+            self.master = mavutil.mavlink_connection("udp:0.0.0.0:14550")
+            print("Waiting for heartbeat...")
+            self.master.wait_heartbeat()
+            print("Connected!")
             self.is_connected = True
             return True
         except Exception as e:
@@ -128,15 +132,13 @@ drone = DroneController()
 def index():
     return render_template('index.html')
 
-@app.route('/loginrpi', methods=['POST'])
-
 @app.route('/connect', methods=['POST'])
 def connect_rpi():
-    hostname = request.form.get('hostname')
+    hostname = request.form.get('hostip')
     username = request.form.get('username')
     password = request.form.get('password')
     
-    result, message = rpi_manager.connect(hostname, username, password)
+    result, message = drone.connect_ssh(hostname, username, password)
     return jsonify({
         'status': result,
         'message': message

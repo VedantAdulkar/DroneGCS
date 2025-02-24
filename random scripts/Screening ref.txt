@@ -1,0 +1,55 @@
+To set this up:
+
+Create the start script:
+
+bashCopy# Create and make executable the start script
+sudo nano /home/pi/start_mavproxy.sh
+# (Copy the content of the first script)
+chmod +x /home/pi/start_mavproxy.sh
+
+Create the monitor script:
+
+bashCopy# Create and make executable the monitor script
+sudo nano /home/pi/monitor_mavproxy.sh
+# (Copy the content of the second script)
+chmod +x /home/pi/monitor_mavproxy.sh
+
+Add to crontab to start on boot:
+
+bashCopycrontab -e
+Add this line:
+Copy@reboot /home/pi/monitor_mavproxy.sh
+
+To start it immediately:
+
+bashCopy# Start MAVProxy
+/home/pi/start_mavproxy.sh
+
+# Start the monitor in the background
+nohup /home/pi/monitor_mavproxy.sh &
+
+To check status:
+
+bashCopy# View running screen sessions
+screen -list
+
+# Attach to MAVProxy screen
+screen -r mavproxy
+
+# View logs
+tail -f /home/pi/mavproxy.log
+tail -f /home/pi/mavproxy_monitor.log
+To stop everything:
+bashCopy# Kill the monitor script
+pkill -f "monitor_mavproxy.sh"
+
+# Kill the screen session
+screen -X -S mavproxy quit
+This approach has several advantages:
+
+Simpler than systemd
+Easy to monitor and debug
+Can manually attach to see live output
+Automatic restart if it crashes
+Persistent across reboots
+Easy to modify parameters
