@@ -53,3 +53,7 @@ Can manually attach to see live output
 Automatic restart if it crashes
 Persistent across reboots
 Easy to modify parameters
+
+
+
+IF HEARTBEAT NOT RECIEVING THEN CHECK LAPTOP IP AND UPDATE IT IN....  start_mavproxy.sh

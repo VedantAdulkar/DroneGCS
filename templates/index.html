@@ -46,6 +46,17 @@
             grid-column: span 2
             }
 
+        .camera-feed {
+            width: 100%; /* Ensures it fills the parent container */
+            margin-top: 1rem; /* Adds some spacing below the header */
+        }
+
+        .video-stream {
+            max-width: 100%; /* Ensures the video doesn't overflow */
+            height: auto; /* Maintains aspect ratio */
+            border-radius: 5px; /* Optional: adds rounded corners to match card style */
+        }
+        
         .card {
             background: white;
             border-radius: 10px;
@@ -171,32 +182,13 @@
             cursor: pointer;
         }
 
-        .joystick-container {
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, #f0f0f0, #e0e0e0);
-            border-radius: 50%;
-            position: relative;
-            margin: 2rem auto;
-            border: 2px solid #ccc;
-        }
 
-        .joystick-handle {
-            width: 50px;
-            height: 50px;
-            background: var(--primary-color);
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            cursor: grab;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
 
-        .joystick-handle:active {
-            cursor: grabbing;
-        }
+
+
+        .joystick-container { position: relative; width: 200px; background: radial-gradient(circle, #f0f0f0, #e0e0e0); height: 200px; border-radius: 50%; border: 2px solid #ccc; margin: 2rem auto; display: flex; justify-content: center; align-items: center; }
+        .joystick { width: 60px; height: 60px; background: grey; border-radius: 50%; position: absolute; cursor: grab; }
+
 
         .telemetry-grid {
             display: grid;
@@ -222,6 +214,14 @@
             border-radius: 5px;
             margin: 1rem 0;
             display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            min-width: 300px;
         }
 
         .alert-success {
@@ -234,6 +234,18 @@
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
+        }
+
+        .blur-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            display: none;
         }
 
         .modal {
@@ -295,6 +307,7 @@
             </div>
         </div>
 
+        <div class="blur-overlay" id="blurOverlay"></div>
         <div class="alert" id="alert"></div>
 
 
@@ -327,6 +340,7 @@
                 <button id="connect-btn" class="btn btn-primary">Connect Drone</button>
                 <button id="arm-btn" class="btn btn-success" disabled>Arm Motors</button>
                 <button id="disarm-btn" class="btn btn-danger" disabled>Disarm Motors</button>
+                <button id="land-btn" class="btn btn-danger" disabled>Land Drone</button>
             </div>
         </div>
 
@@ -334,19 +348,25 @@
 
             <div class="card" id="span-card">
                 <h2>Drone Camera</h2>
+                
+                <div class="camera-feed-placeholder" id="placeholder">
+                    <p>Camera Feed Not Connected</p>
+                    <small>Connect Raspberry Pi to enable camera stream</small>
+                </div>
                 <div class="camera-feed">
-                    <div class="camera-feed-placeholder" id="placeholder">
-                        <p>Camera Feed Not Connected</p>
-                        <small>Connect Raspberry Pi to enable camera stream</small>
-                    </div>
-                    <img id="video-stream" src="{{ url_for('video_feed') }}" width="300" height="300" onload="hidePlaceholder()" onerror="showPlaceholder()">
+                        <h2>Edge Detection</h2>
+                       <img class="video-stream" src="/video_feed/edges" alt="Edge Detection" onload="hidePlaceholder()" onerror="showPlaceholder()">
                 </div>
             </div>
 
             <div class="card">
                 <h2>Flight Controls</h2>
-                <div class="joystick-container" id="joystick">
+                <!--<div class="joystick-container" id="joystick">
                     <div class="joystick-handle" id="joystick-handle"></div>
+                </div>
+                -->
+                <div class="joystick-container">
+                    <div class="joystick" id="joystick"></div>
                 </div>
                 <div class="slider-container">
                     <label>Throttle</label>
@@ -434,19 +454,25 @@
         const connectBtn = document.getElementById('connect-btn');
         const armBtn = document.getElementById('arm-btn');
         const disarmBtn = document.getElementById('disarm-btn');
-        const joystickHandle = document.getElementById('joystick-handle');
-        const joystickContainer = document.getElementById('joystick');
+        const landBtn = document.getElementById('land-btn');
+        const joystickHandle = document.getElementById('joystick');
+        const joystickContainer = document.getElementById('joystick-container');
         const alert = document.getElementById('alert');
+        const blurOverlay = document.getElementById('blurOverlay');
 
         // Show alert message
         function showAlert(message, type) {
             alert.textContent = message;
             alert.className = `alert alert-${type}`;
             alert.style.display = 'block';
+            blurOverlay.style.display = 'block';
             setTimeout(() => {
                 alert.style.display = 'none';
-            }, 3000);
+                blurOverlay.style.display = 'none';
+            }, 2000);
         }
+
+
 
         function openModal() {
             document.getElementById("connectModal").style.display = "block";
@@ -454,6 +480,14 @@
 
         function closeModal() {
             document.getElementById("connectModal").style.display = "none";
+        }
+
+        function hidePlaceholder() {
+        document.getElementById("placeholder").style.display = "none";
+        }
+
+        function showPlaceholder() {
+            document.getElementById("placeholder").style.display = "block";
         }
 
 
@@ -468,7 +502,7 @@
             document.getElementById('status').innerText = 'Connecting...';
 
             // Send form data to the /connect endpoint
-            fetch('/connect', {
+            fetch('/connectrpi', {
                 method: 'POST',
                 body: formData
             })
@@ -531,18 +565,25 @@
         function updateControls() {
             armBtn.disabled = !isConnected;
             disarmBtn.disabled = !isConnected;
+            landBtn.disabled = !isConnected;
             document.querySelectorAll('.motor-card button').forEach(btn => {
-                btn.disabled = !isArmed;
+                btn.disabled = !isConnected;
             });
             document.querySelectorAll('.slider').forEach(slider => {
-                slider.disabled = !isArmed;
+                slider.disabled = !isConnected;
+                console.log("SLIDERS ENABLED")
             });
+            if (isConnected) {
+                joystickHandle.style.background = 'var(--primary-color)';
+            } else {
+                joystickHandle.style.background = 'grey';
+            }
         }
 
         // Connection handling
         connectBtn.addEventListener('click', async () => {
             try {
-                const response = await fetch('/connect', { method: 'POST' });
+                const response = await fetch('/connectdrone', { method: 'POST' });
                 const data = await response.json();
                 
                 if (data.status === 'success') {
@@ -557,6 +598,21 @@
                 showAlert('Connection error', 'danger');
             }
         });
+
+        async function fetchTelemetry(){
+            console.log("Starting to update tele logs")
+            try {
+                let response = await fetch('/telemetrystatus', { method: 'POST' });
+                let data = await response.json();
+
+                document.getElementById('altitude').innerText = data.altitude;
+                document.getElementById('battery').innerText = data.battery;
+                document.getElementById('satellites').innerText = data.satellites;
+                document.getElementById('speed').innerText = data.speed;
+            } catch (error) {
+                console.error('Error fetching telemetry:', error);
+            }
+        }
 
         // Arm/Disarm handling
         armBtn.addEventListener('click', async () => {
@@ -595,9 +651,26 @@
             }
         });
 
+        landBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/land', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showAlert('Drone landed successfully', 'success');
+                } else {
+                    showAlert('Failed to land drone', 'danger');
+                }
+            } catch (error) {
+                showAlert('Landing error', 'danger');
+            }
+        });
+        
+
         // Motor testing
         async function testMotor(motorNumber) {
             const slider = document.getElementById(`motor${motorNumber}-slider`);
+            const valueDisplay = document.getElementById(`motor${motorNumber}-value`);
             const throttle = parseInt(slider.value);
             
             try {
@@ -618,13 +691,49 @@
                 } else {
                     showAlert(`Failed to test Motor ${motorNumber}`, 'danger');
                 }
+                slider.value=0;
             } catch (error) {
                 showAlert('Motor test error', 'danger');
+                valueDisplay.textContent = "0%";
             }
         }
 
         // Joystick handling
-        function handleJoystick(event) {
+
+        const joystick = document.getElementById('joystick');
+        const container = document.querySelector('.joystick-container');
+        let isDragging = false;
+
+        joystick.addEventListener('mousedown', () => { if (!isConnected) return; isDragging = true; });
+        document.addEventListener('mouseup', () => { isDragging = false; joystick.style.transform = 'translate(0, 0)'; });
+        document.addEventListener('mousemove', (event) => {
+            if (!isDragging || !isConnected) return;
+            const rect = container.getBoundingClientRect();
+            let x = event.clientX - rect.left - rect.width / 2;
+            let y = event.clientY - rect.top - rect.height / 2;
+            const distance = Math.sqrt(x * x + y * y);
+            const maxDistance = rect.width / 2 - joystick.offsetWidth / 2;
+            if (distance > maxDistance) {
+                const angle = Math.atan2(y, x);
+                x = Math.cos(angle) * maxDistance;
+                y = Math.sin(angle) * maxDistance;
+            }
+            joystick.style.transform = `translate(${x}px, ${y}px)`;
+            // Convert to control values (-1000 to 1000)
+            const normalizedX = (x / radius) * 1000;
+            const normalizedY = (y / radius) * 1000;
+            
+            joystickData = {
+                x: Math.round(normalizedX),
+                y: Math.round(normalizedY)
+            };
+            
+            // Send control data
+            sendControlData();
+        });
+
+        
+        /*function handleJoystick(event) {
             if (!joystickActive || !isArmed) return;
 
             const rect = joystickContainer.getBoundingClientRect();
@@ -699,6 +808,7 @@
                 sendControlData();
             }
         });
+            */
 
         // Throttle and yaw control
         const throttleSlider = document.getElementById('throttle-slider');
@@ -729,32 +839,25 @@
         }
 
         // Motor slider value updates
-        document.querySelectorAll('[id^="motor"]').forEach(motor => {
-            const slider = motor.querySelector('.slider');
-            const value = motor.querySelector('[id$="-value"]');
-            
-            slider.addEventListener('input', () => {
-                value.textContent = `${slider.value}%`;
-            });
-        });
 
-        // Telemetry updates
-        socket.on('telemetry', (data) => {
-            if (data.altitude !== undefined) {
-                document.getElementById('altitude').textContent = `${data.altitude.toFixed(1)} m`;
-            }
-            if (data.battery !== undefined) {
-                document.getElementById('battery').textContent = `${data.battery}%`;
-            }
-            if (data.satellites !== undefined) {
-                document.getElementById('satellites').textContent = data.satellites;
-                document.getElementById('gps-status').className = 
-                    `status-indicator status-${data.satellites >= 6 ? 'online' : 'offline'}`;
-            }
-            if (data.speed !== undefined) {
-                document.getElementById('speed').textContent = `${data.speed.toFixed(1)} m/s`;
-            }
-        });
+
+        function updateslidervalues(){
+            if (!isConnected) return;
+
+            document.querySelectorAll('[id^="motor"]').forEach(motor => {
+                const slider = motor.querySelector('.slider');
+                const value = motor.querySelector('[id$="-value"]');
+
+                if (slider && value) {
+                    slider.disabled = false; // Enable slider when connected
+                    slider.addEventListener('input', () => {
+                        value.textContent = slider.value ? `${slider.value}%` : `0%`;
+                    });
+                }
+            });
+        
+            clearInterval(checkConnection); // Stop checking once initialized
+        }
 
         // Error handling
         socket.on('error', (error) => {
@@ -764,6 +867,16 @@
         // Initial status update
         updateStatus();
         updateControls();
+        setInterval(() => {
+            if (isConnected) {
+                fetchTelemetry();
+            }
+        }, 100);
+        const checkConnection = setInterval(() => {
+            if (isConnected) {
+                updateslidervalues();
+            }
+        }, 100);
     </script>
 </body>
 </html>
